@@ -1,25 +1,19 @@
 package com.example.musicplayer;
 
 import android.Manifest;
+
 import android.content.pm.PackageManager;
 import android.database.Cursor;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
-import android.graphics.Canvas;
-import android.graphics.Paint;
-import android.graphics.PorterDuff;
-import android.graphics.PorterDuffXfermode;
-import android.graphics.Rect;
-import android.graphics.RectF;
 import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Handler;
 import android.provider.MediaStore;
 import android.os.Bundle;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.Button;
-import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.SeekBar;
 import android.widget.SimpleAdapter;
@@ -39,13 +33,13 @@ import java.util.Map;
 import java.util.Random;
 
 import static java.lang.String.format;
+import static java.security.AccessController.getContext;
 
 public class MainActivity extends AppCompatActivity implements View.OnClickListener{
     private MediaPlayer mediaPlayer=new MediaPlayer();
     protected ArrayList<Music> musiclist;
     Handler handler=new Handler();
     private int time;
-    private Bitmap circle_photo;
     SeekBar mediaSeekbar;
     private boolean click;
     private int pos;
@@ -62,7 +56,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
         Button play=(Button)findViewById(R.id.playButton);
         Button pause=(Button)findViewById(R.id.pauseButton);
-        Button stop=(Button)findViewById(R.id.stopButton);
+        Button restart=(Button)findViewById(R.id.restartButton);
         Button pre=(Button)findViewById(R.id.pre);
         Button next=(Button)findViewById(R.id.next);
         final Button loop1=(Button)findViewById(R.id.loop);
@@ -74,7 +68,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         pre.setOnClickListener(this);
         next.setOnClickListener(this);
         pause.setOnClickListener(this);
-        stop.setOnClickListener(this);
+        restart.setOnClickListener(this);
         mediaSeekbar.setOnSeekBarChangeListener(sbLis);
 
         listview.setOnItemClickListener(new AdapterView.OnItemClickListener() {
@@ -84,24 +78,25 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             }
 
         });
+        //播放方式
         mediaPlayer.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {   //判断歌曲是否播放完
             @Override
             public void onCompletion(MediaPlayer mp) {
-                if(loop1.getText().toString().equals("loop"))
-                {
+                if(loop1.getText().toString().equals("循环")) {
                     mp.reset();
                     begin_gain(pos);
                 }
-                if(loop1.getText().toString().equals("order")) {
+                if(loop1.getText().toString().equals("顺序")) {
                     if (pos == num - 1) {
                         mp.reset();
                         begin_gain(0);
+                        mediaPlayer.start();
                     } else {
                         mp.reset();
                         begin_gain(pos + 1);
                     }
                 }
-                if(loop1.getText().toString().equals("rand")) {
+                if(loop1.getText().toString().equals("随机")) {
                     mp.reset();
                     Random ra =new Random();
                     begin_gain(ra.nextInt(num-1));
@@ -109,28 +104,22 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             }
         });
 
-        if(ContextCompat.checkSelfPermission(MainActivity.this,Manifest.permission.WRITE_EXTERNAL_STORAGE)!=PackageManager.PERMISSION_GRANTED)
-        {
-            ActivityCompat.requestPermissions(MainActivity.this,new String[]
-                    {
-                            Manifest.permission.WRITE_EXTERNAL_STORAGE},1);
+        if(ContextCompat.checkSelfPermission(MainActivity.this,Manifest.permission.WRITE_EXTERNAL_STORAGE)!=PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(MainActivity.this,new String[]{
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE
+            },1);
         }
-        else
-        {
+        else {
             initMediaPlayer();
         }
     }
-    public void begin_gain(int position)
-    {
+    public void begin_gain(int position) {
         TextView  small_title=(TextView)findViewById(R.id.small_title);
         TextView  small_singer=(TextView)findViewById(R.id.small_singer);
-        ImageView imag=(ImageView)findViewById(R.id.imag);
         TextView  time_end=(TextView)findViewById(R.id.time_end);
         time=musiclist.get(position).getDuration();
         small_title.setText(musiclist.get(position).getTitle());
         small_singer.setText(musiclist.get(position).getSinger());
-        circle_photo=getRoundedCornerBitmap(musiclist.get(position).getPhoto(),2);
-        imag.setImageBitmap(circle_photo);
         pos=position;
         time_end.setText(change_time(musiclist.get(position).getDuration()));
         mediaSeekbar.setMax(time);
@@ -138,33 +127,15 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         Uri uri = Uri.withAppendedPath(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, String.valueOf(musiclist.get(position).getId()));   //找到路径
         mediaPlayer.reset();
         try {
-
             mediaPlayer.setDataSource(MainActivity.this, uri);
             mediaPlayer.prepare();
-
-
         } catch (IOException e) {
             e.printStackTrace();
         }
         mediaPlayer.start();
     }
-    public static Bitmap getRoundedCornerBitmap(Bitmap bitmap, float ratio) {       //播放时的圆形封面
-        Bitmap output = Bitmap.createBitmap(bitmap.getWidth(),
-                bitmap.getHeight(), Bitmap.Config.ARGB_8888);
-        Canvas canvas = new Canvas(output);
-        final Paint paint = new Paint();
-        final Rect rect = new Rect(0, 0, bitmap.getWidth(), bitmap.getHeight());
-        final RectF rectF = new RectF(rect);
-        paint.setAntiAlias(true);
-        canvas.drawARGB(0, 0, 0, 0);
-        canvas.drawRoundRect(rectF, bitmap.getWidth() / ratio,
-                bitmap.getHeight() / ratio, paint);
-        paint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.SRC_IN));
-        canvas.drawBitmap(bitmap, rect, rect, paint);
-        return output;
-    }
 
-    Runnable updateseekbar =new Runnable(){      //实现多线程操作
+    Runnable updateseekbar =new Runnable(){
         @Override
         public void run() {
             // TODO Auto-generated method stub
@@ -172,39 +143,17 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             mediaSeekbar.setProgress(mediaPlayer.getCurrentPosition());
             TextView time_begin = (TextView) findViewById(R.id.time_begin);
             time_begin.setText(change_time(mediaPlayer.getCurrentPosition()));
-
         }
 
     };
 
-    private Bitmap getAlbumArt(int albumID) {   //通过封面id找到图片
-        String mUriAlbums = "content://media/external/audio/albums";
-        String[] projection = new String[]{"album_art"};
-        Cursor cur = getContentResolver().query(Uri.parse(mUriAlbums + "/" + Integer.toString(albumID)), projection, null, null, null);
-        String album_art = null;
-        if (cur.getCount() > 0 && cur.getColumnCount() > 0) {
-            cur.moveToNext();
-            album_art = cur.getString(0);
-        }
-        cur.close();
-        Bitmap bm = null;
-        if (album_art != null) {
-            bm = BitmapFactory.decodeFile(album_art);
-        }
-        return bm;
-    }
-
-    public void onRequestPermissionsResult(int requestCode,String[] permissions,int[] grantResults)
-    {
-        switch (requestCode)
-        {
+    public void onRequestPermissionsResult(int requestCode,String[] permissions,int[] grantResults) {
+        switch (requestCode) {
             case 1:
-                if(grantResults.length>0&&grantResults[0]==PackageManager.PERMISSION_GRANTED)
-                {
+                if(grantResults.length>0&&grantResults[0]==PackageManager.PERMISSION_GRANTED) {
                     initMediaPlayer();
                 }
-                else
-                {
+                else {
                     Toast.makeText(this,"拒绝权限无法使用该程序！",Toast.LENGTH_SHORT).show();
                     finish();
                 }
@@ -254,7 +203,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             Music mp3 = (Music) iterator.next();
             map.put("title", mp3.getTitle());
             map.put("singer", mp3.getSinger());
-            map.put("album", mp3.getAlbum());
             map.put("size",change_size(mp3.getSize()));
             map.put("duration", mp3.getDuration());
             map.put("url", mp3.getUrl());
@@ -264,8 +212,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 this,
                 music_item,
                 R.layout.music_list_item,
-                new String[] {"title","size","singer", "album"},
-                new int[] {R.id.title,R.id.size,R.id.singer,R.id.album}
+                new String[] {"title","size","singer"},
+                new int[] {R.id.title,R.id.size,R.id.singer}
         );
         listview.setAdapter(mSimpleAdapter);
 
@@ -281,25 +229,19 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 int id = cursor.getInt(cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID));  //id号
                 String title = cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE));  //歌名
                 System.out.println(title);
-                String album = cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM));  //专辑
-                int albumId = cursor.getInt(cursor.getColumnIndex(MediaStore.Audio.Media.ALBUM_ID));   //专辑封面id
                 String singer = cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST));  //歌手
                 System.out.println(singer);
                 String url = cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA));   //路径
                 int duration = cursor.getInt(cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION));  //事件
                 Long size = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE));  //大小
-                Bitmap photo=getAlbumArt(albumId);
                 if (size >1024*800){//大于800K
                     Music music = new Music();
                     music.setId(id);
                     music.setTitle(title);
                     music.setSinger(singer);
-                    music.setAlbum(album);
                     music.setDuration(duration);
                     music.setSize(size);
                     music.setUrl(url);
-                    music.setAlbumId(albumId);
-                    music.setPhoto(photo);
                     musiclist.add(music);
                 }
                 cursor.moveToNext();
@@ -328,11 +270,12 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 }
 
                 break;
-            case R.id.stopButton:
+            case R.id.restartButton:
                 mediaSeekbar.setProgress(0);
                 mediaPlayer.seekTo(0);
-                mediaPlayer.pause();
+                mediaPlayer.start();
                 break;
+
             case R.id.pre:
                 if(pos==0)
                 {
@@ -358,7 +301,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             case R.id.loop:
                 if(ok==1)
                 {
-                    loop1.setText("loop");
+                    loop1.setText("循环");
                     ok=ok+1;
                     break;
                 }
@@ -366,7 +309,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 {
                     ok=ok+1;
                     System.out.println(ok);
-                    loop1.setText("order");
+                    loop1.setText("顺序");
                     break;
 
                 }
@@ -374,7 +317,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 {
                     ok=ok-2;
                     System.out.println(ok);
-                    loop1.setText("rand");
+                    loop1.setText("随机");
                     break;
 
                 }
@@ -384,6 +327,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             default:
                 break;
         }
+
     }
     private SeekBar.OnSeekBarChangeListener sbLis=new SeekBar.OnSeekBarChangeListener(){
         @Override
@@ -414,4 +358,23 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             mediaPlayer.release();
         }
     }
+    public boolean onCreateOptionsMenu(Menu menu){
+        getMenuInflater().inflate(R.menu.main,menu);
+        return true;
+    }
+
+    public boolean onOptionsItemSelected(MenuItem item){
+        switch (item.getItemId()) {
+            case R.id.menu_item_add:
+                initMediaPlayer();
+
+                break;
+            case R.id.menu_item_delete:
+
+                break;
+            default:
+        }
+        return true;
+    }
+
 }
